@@ -24,6 +24,8 @@ struct MenuBarView: View {
                     
                     ScrollView {
                         VStack(spacing: 16) {
+                            SystemDashboardView(monitor: trackingVM.systemMonitor)
+                            
                             ProductiveAppsSectionView(trackingVM: trackingVM)
                             
                             Button(action: { 
@@ -101,21 +103,6 @@ struct HeaderView: View {
             }
             
             Spacer()
-            
-            // Coins Card
-            HStack(spacing: 6) {
-                Text("💥")
-                Text("\(gameState.coins)")
-                    .font(.system(size: 16, weight: .bold, design: .monospaced))
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.yellow.opacity(0.1))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
-            )
         }
     }
 }
@@ -350,5 +337,136 @@ struct AddAppPopover: View {
                 .padding(.vertical, 10)
         }
         .background(Color(NSColor.windowBackgroundColor))
+    }
+}
+
+struct SystemDashboardView: View {
+    @ObservedObject var monitor: SystemMonitorManager
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("SYSTEM PERFORMANCE")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.secondary)
+                    .tracking(1)
+                Spacer()
+                Text("Apple Silicon")
+                    .font(.system(size: 8, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(4)
+            }
+            
+            // CPU Cores Display
+            if !monitor.perCoreUsage.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CPU CORES LOAD")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary)
+                    
+                    let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 4)
+                    LazyVGrid(columns: columns, spacing: 4) {
+                        ForEach(0..<monitor.perCoreUsage.count, id: \.self) { index in
+                            let usage = monitor.perCoreUsage[index]
+                            let type = index < monitor.coreTypes.count ? monitor.coreTypes[index] : .unknown
+                            let color: Color = (type == .efficiency) ? .yellow : (type == .performance ? .blue : .secondary)
+                            
+                            CoreUsageBar(usage: usage, color: color)
+                        }
+                    }
+                }
+                .padding(.bottom, 4)
+            }
+            
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                StatItemView(label: "CPU AVG", value: String(format: "%.2f%%", monitor.cpuUsage), progress: monitor.cpuUsage / 100, color: .blue)
+                StatItemView(label: "GPU", value: String(format: "%.2f%%", monitor.gpuUsage), progress: monitor.gpuUsage / 100, color: .purple)
+                StatItemView(label: "RAM", value: String(format: "%.2fGB", monitor.ramUsed), progress: monitor.ramUsed / monitor.ramTotal, color: .orange)
+                StatItemView(label: "TEMP", value: String(format: "%.2f°C", monitor.temperature), progress: monitor.temperature / 100, color: .red)
+            }
+            
+            Divider().opacity(0.3)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("STORAGE")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary)
+                    Text("\(String(format: "%.2f", monitor.diskUsed))GB / \(String(format: "%.2f", monitor.diskTotal))GB")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("NETWORK")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.secondary)
+                    Text("↓\(formatSpeed(monitor.networkDownload)) ↑\(formatSpeed(monitor.networkUpload))")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                }
+            }
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    private func formatSpeed(_ mbps: Double) -> String {
+        if mbps < 1 {
+            let kbps = mbps * 1024
+            return kbps < 1 ? "0K" : String(format: "%.0fK", kbps)
+        }
+        return String(format: "%.2fM", mbps)
+    }
+}
+
+struct CoreUsageBar: View {
+    let usage: Double
+    let color: Color
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(color.opacity(0.1))
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(color)
+                    .frame(height: geo.size.height * CGFloat(min(max(usage / 100, 0), 1)))
+            }
+        }
+        .frame(height: 20)
+    }
+}
+
+struct StatItemView: View {
+    let label: String
+    let value: String
+    let progress: Double
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(value)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+            }
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color.opacity(0.1))
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: geo.size.width * CGFloat(min(max(progress, 0), 1)))
+                }
+            }
+            .frame(height: 4)
+        }
     }
 }

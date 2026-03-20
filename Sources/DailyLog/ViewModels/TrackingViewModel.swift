@@ -6,6 +6,7 @@ class TrackingViewModel: ObservableObject {
     @Published var gameState: GameState = GameState()
     @Published var currentAppName: String = "Monitoring..."
     @Published var isProductiveAppActive: Bool = false
+    var systemMonitor = SystemMonitorManager()
     
     // Sort based on today's time stored in allTimeStats
     var sortedProductiveApps: [ProductiveApp] {
@@ -68,7 +69,7 @@ class TrackingViewModel: ObservableObject {
                 self.saveState()
             }
             
-            // 2. Productive Coins & Time Tracking
+            // 2. Productive Time Tracking
             if let frontmost = NSWorkspace.shared.frontmostApplication,
                let bundleId = frontmost.bundleIdentifier {
                 
@@ -80,19 +81,10 @@ class TrackingViewModel: ObservableObject {
                     
                     // Update the stats vault
                     var stats = self.gameState.allTimeStats[bundleId] ?? AppStats()
-                    stats.appName = productiveApp.appName // Store/update name
+                    stats.appName = productiveApp.appName
                     stats.totalTimeToday += delta
                     stats.totalLifetimeTime += delta
                     self.gameState.allTimeStats[bundleId] = stats
-                    
-                    // Coins
-                    self.pendingCoinSeconds += delta
-                    if self.pendingCoinSeconds >= 60 {
-                        let mins = Int(self.pendingCoinSeconds / 60)
-                        self.gameState.coins += mins
-                        self.pendingCoinSeconds -= TimeInterval(mins * 60)
-                        self.saveState()
-                    }
                 } else {
                     self.isProductiveAppActive = false
                 }

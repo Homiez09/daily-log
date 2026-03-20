@@ -15,6 +15,11 @@ let package = Package(
             name: "DailyLog",
             dependencies: [],
             path: "Sources/DailyLog"
+        ),
+        .testTarget(
+            name: "DailyLogTests",
+            dependencies: ["DailyLog"],
+            path: "Tests/DailyLogTests"
         )
     ]
 )

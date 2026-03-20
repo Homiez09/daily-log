@@ -44,11 +44,12 @@ Run the provided build script to create a standalone macOS application:
 ```
 This will generate `DailyLog.app` in the root directory.
 
-### Running for Development
-You can run the executable directly via SPM:
+### Running Tests
+To run the automated test suite:
 ```bash
-swift run
+swift test
 ```
+This will execute logic tests for system monitoring and data management.
 
 ## Development Conventions
 - **MVVM Architecture:** Logic should be kept in ViewModels (`TrackingViewModel`, `FocusTimerViewModel`), while Views remain declarative.
