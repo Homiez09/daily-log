@@ -104,7 +104,7 @@ struct HeaderView: View {
             
             // Coins Card
             HStack(spacing: 6) {
-                Text("🪙")
+                Text("💥")
                 Text("\(gameState.coins)")
                     .font(.system(size: 16, weight: .bold, design: .monospaced))
             }
