@@ -4,11 +4,9 @@ DailyLog is a macOS Menu Bar application designed to help users track their prod
 
 ## Core Features
 - **App Usage Tracking:** Automatically monitors the active (frontmost) application and records time spent. Data is reset daily.
-- **Focus Timer:** A Pomodoro-style timer to help manage work sessions and breaks.
+- **System Monitoring:** Real-time monitoring of CPU, RAM, GPU, Disk, Temperature, and Network directly in the menu bar.
 - **Gamification:**
-    - **Levels & EXP:** Earn 1 EXP for every minute spent on any application.
-    - **Coins:** Earn coins for continuous focus on a single application (e.g., 1 coin for every 15 minutes, bonus for 60 minutes).
-    - **Honor Pets:** Use coins to unlock and equip virtual pets.
+    - **Levels & EXP:** Earn 1 EXP for every minute spent on any application. Track your progress through levels based on total lifetime usage.
 - **Menu Bar Integration:** Runs entirely from the macOS menu bar for a non-intrusive experience.
 
 ## Technology Stack

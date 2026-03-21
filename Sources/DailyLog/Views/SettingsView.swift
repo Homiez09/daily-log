@@ -180,7 +180,7 @@ struct SettingsView: View {
                         Text("Reset All Data?")
                             .font(.headline)
                         
-                        Text("This action cannot be undone. You will lose your levels, coins, and history.")
+                        Text("This action cannot be undone. You will lose your levels and history.")
                             .font(.system(size: 11))
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
