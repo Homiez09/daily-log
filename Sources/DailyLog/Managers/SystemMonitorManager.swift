@@ -112,20 +112,27 @@ class SystemMonitorManager: ObservableObject {
             
             for i in 0..<Int(processorCount) {
                 let index = i * Int(CPU_STATE_MAX)
-                let user = info[index + Int(CPU_STATE_USER)]
-                let system = info[index + Int(CPU_STATE_SYSTEM)]
-                let idle = info[index + Int(CPU_STATE_IDLE)]
-                let nice = info[index + Int(CPU_STATE_NICE)]
+                
+                let user = UInt32(bitPattern: info[index + Int(CPU_STATE_USER)])
+                let system = UInt32(bitPattern: info[index + Int(CPU_STATE_SYSTEM)])
+                let idle = UInt32(bitPattern: info[index + Int(CPU_STATE_IDLE)])
+                let nice = UInt32(bitPattern: info[index + Int(CPU_STATE_NICE)])
                 
                 if let prev = previousProcessorInfo {
-                    let pUser = prev[index + Int(CPU_STATE_USER)]
-                    let pSystem = prev[index + Int(CPU_STATE_SYSTEM)]
-                    let pIdle = prev[index + Int(CPU_STATE_IDLE)]
-                    let pNice = prev[index + Int(CPU_STATE_NICE)]
+                    let pUser = UInt32(bitPattern: prev[index + Int(CPU_STATE_USER)])
+                    let pSystem = UInt32(bitPattern: prev[index + Int(CPU_STATE_SYSTEM)])
+                    let pIdle = UInt32(bitPattern: prev[index + Int(CPU_STATE_IDLE)])
+                    let pNice = UInt32(bitPattern: prev[index + Int(CPU_STATE_NICE)])
                     
-                    let diffTotal = (user - pUser) + (system - pSystem) + (idle - pIdle) + (nice - pNice)
+                    let diffUser = user &- pUser
+                    let diffSystem = system &- pSystem
+                    let diffIdle = idle &- pIdle
+                    let diffNice = nice &- pNice
+                    
+                    let diffTotal = UInt64(diffUser) + UInt64(diffSystem) + UInt64(diffIdle) + UInt64(diffNice)
                     if diffTotal > 0 {
-                        let usage = Double((user - pUser) + (system - pSystem) + (nice - pNice)) / Double(diffTotal) * 100.0
+                        let active = UInt64(diffUser) + UInt64(diffSystem) + UInt64(diffNice)
+                        let usage = Double(active) / Double(diffTotal) * 100.0
                         coreUsages.append(usage)
                         totalCombined += usage
                     }
@@ -206,8 +213,11 @@ class SystemMonitorManager: ObservableObject {
         if let last = lastNetData {
             let diff = now.timeIntervalSince(last.time)
             if diff > 0 {
-                stats.networkDownload = Double(cin - last.in) / (1024*1024) / diff
-                stats.networkUpload = Double(cout - last.out) / (1024*1024) / diff
+                let downloadDiff = cin >= last.in ? cin - last.in : 0
+                let uploadDiff = cout >= last.out ? cout - last.out : 0
+                
+                stats.networkDownload = Double(downloadDiff) / (1024*1024) / diff
+                stats.networkUpload = Double(uploadDiff) / (1024*1024) / diff
             }
         }
         lastNetData = (cin, cout, now)
