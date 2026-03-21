@@ -38,3 +38,5 @@ xcuserdata/
 # DailyLog Build Artifacts
 DailyLog.app/
 *.dSYM/
+
+*.dmg
