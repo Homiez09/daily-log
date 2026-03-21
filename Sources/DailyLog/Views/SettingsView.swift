@@ -395,10 +395,10 @@ struct ImportView: View {
                     }
                     
                     Button(action: {
-                        if trackingVM.importFromJSON(jsonText) {
-                            withAnimation { isPresented = false }
+                        if let error = trackingVM.importFromJSON(jsonText) {
+                            errorMsg = "❌ " + error
                         } else {
-                            errorMsg = "❌ Invalid JSON. Please check and try again."
+                            withAnimation { isPresented = false }
                         }
                     }) {
                         Text("Restore Data")

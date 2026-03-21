@@ -53,15 +53,21 @@ struct GameState: Codable {
     }
     
     private func calculateLevelAndProgress() -> (level: Int, exp: Int, required: Int) {
-        var remainingExp = totalLifetimeExp
-        var currentLevel = 1
-        var req = Int(60 * pow(Double(currentLevel), 1.5))
-        while remainingExp >= req {
-            remainingExp -= req
-            currentLevel += 1
-            req = Int(60 * pow(Double(currentLevel), 1.5))
-        }
-        return (currentLevel, remainingExp, req)
+        let C: Double = 60.0
+        let totalExp = Double(totalLifetimeExp)
+        
+        // Current lvl
+        let currentLevel = Int(floor(sqrt(totalExp / C))) + 1
+        
+        // Total Exp for current lvl and next lvl
+        let totalExpForCurrentLevel = Int(C * pow(Double(currentLevel - 1), 2))
+        let totalExpForNextLevel = Int(C * pow(Double(currentLevel), 2))
+        
+        // return currentLevel, remainingExp, reqExp
+        let remainingExp = totalLifetimeExp - totalExpForCurrentLevel
+        let reqExp = totalExpForNextLevel - totalExpForCurrentLevel
+        
+        return (currentLevel, remainingExp, reqExp)
     }
     
     private func formatProgress(current: Double, total: Double) -> String {
@@ -101,7 +107,8 @@ struct GameState: Codable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.totalLifetimeExp = try container.decodeIfPresent(Int.self, forKey: .totalLifetimeExp) ?? 0
+        // Ensure totalLifetimeExp is decoded correctly, falling back only if strictly necessary but preferring to throw if key is missing to warn identifying missing data
+        self.totalLifetimeExp = try container.decode(Int.self, forKey: .totalLifetimeExp)
         self.productiveApps = try container.decodeIfPresent([ProductiveApp].self, forKey: .productiveApps) ?? []
         self.allTimeStats = try container.decodeIfPresent([String: AppStats].self, forKey: .allTimeStats) ?? [:]
         self.uiSettings = try container.decodeIfPresent(UISettings.self, forKey: .uiSettings) ?? UISettings()

@@ -173,15 +173,17 @@ class TrackingViewModel: ObservableObject {
         return nil
     }
     
-    func importFromJSON(_ json: String) -> Bool {
-        guard let data = json.data(using: .utf8) else { return false }
-        if let newState = try? JSONDecoder().decode(GameState.self, from: data) {
+    func importFromJSON(_ json: String) -> String? {
+        guard let data = json.data(using: .utf8) else { return "Encoding error" }
+        do {
+            let newState = try JSONDecoder().decode(GameState.self, from: data)
             self.gameState = newState
             self.refreshIconCache()
             self.saveState()
-            return true
+            return nil
+        } catch {
+            return "JSON Error: \(error.localizedDescription)"
         }
-        return false
     }
     
     private func saveState() {
