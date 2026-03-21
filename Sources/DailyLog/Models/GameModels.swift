@@ -1,5 +1,14 @@
 import Foundation
 
+enum MenuBarMetric: String, Codable, CaseIterable {
+    case cpu = "CPU"
+    case ram = "RAM"
+    case gpu = "GPU"
+    case storage = "Disk"
+    case temp = "Temp"
+    case network = "Net"
+}
+
 struct ProductiveApp: Identifiable, Codable, Equatable {
     var id: String { bundleId }
     let bundleId: String
@@ -12,12 +21,27 @@ struct AppStats: Codable {
     var totalLifetimeTime: TimeInterval = 0
 }
 
+struct UISettings: Codable {
+    var showHeader: Bool = true
+    var showSystemMonitor: Bool = true
+    var showProductiveApps: Bool = true
+    var showHistoryButton: Bool = true
+    
+    // New Menu Bar Config
+    var menuBarLeading: MenuBarMetric = .cpu
+    var menuBarTrailing: MenuBarMetric = .ram
+}
+
 struct GameState: Codable {
-    var totalLifetimeExp: Int = 0 // 1 EXP = 1 Minute
+    var totalLifetimeExp: Int = 0
     var productiveApps: [ProductiveApp] = []
     var allTimeStats: [String: AppStats] = [:]
+    var uiSettings: UISettings = UISettings()
     
-    // Calculated Progress Strings - Using Floor rounding
+    var level: Int { calculateLevelAndProgress().level }
+    var exp: Int { calculateLevelAndProgress().exp }
+    var requiredExpForNextLevel: Int { calculateLevelAndProgress().required }
+    
     var progressTimeText: String {
         let current = Double(exp)
         let total = Double(requiredExpForNextLevel)
@@ -28,16 +52,10 @@ struct GameState: Codable {
         return formatSingleValue(Double(totalLifetimeExp))
     }
     
-    // Computed Properties for UI
-    var level: Int { calculateLevelAndProgress().level }
-    var exp: Int { calculateLevelAndProgress().exp }
-    var requiredExpForNextLevel: Int { calculateLevelAndProgress().required }
-    
     private func calculateLevelAndProgress() -> (level: Int, exp: Int, required: Int) {
         var remainingExp = totalLifetimeExp
         var currentLevel = 1
         var req = Int(60 * pow(Double(currentLevel), 1.5))
-        
         while remainingExp >= req {
             remainingExp -= req
             currentLevel += 1
@@ -47,19 +65,14 @@ struct GameState: Codable {
     }
     
     private func formatProgress(current: Double, total: Double) -> String {
-        let divider: Double
-        let unit: String
-        
+        let divider: Double; let unit: String
         if total >= 525600 { unit = "y"; divider = 525600 }
         else if total >= 43200 { unit = "mo"; divider = 43200 }
         else if total >= 1440 { unit = "d"; divider = 1440 }
         else if total >= 60 { unit = "h"; divider = 60 }
         else { unit = "m"; divider = 1 }
-        
-        // Use floor to always round down as requested
         let curVal = floor(current / divider * 10) / 10.0
         let totVal = floor(total / divider * 10) / 10.0
-        
         return "\(formatNumber(curVal))\(unit)/\(formatNumber(totVal))\(unit)"
     }
     
@@ -72,21 +85,18 @@ struct GameState: Codable {
     }
     
     private func formatNumber(_ num: Double) -> String {
-        if num.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f", num)
-        } else {
-            return String(format: "%.1f", num)
-        }
+        return num.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", num) : String(format: "%.1f", num)
     }
     
     enum CodingKeys: String, CodingKey {
-        case totalLifetimeExp, productiveApps, allTimeStats
+        case totalLifetimeExp, productiveApps, allTimeStats, uiSettings
     }
     
     init() {
         self.totalLifetimeExp = 0
         self.productiveApps = []
         self.allTimeStats = [:]
+        self.uiSettings = UISettings()
     }
     
     init(from decoder: Decoder) throws {
@@ -94,6 +104,7 @@ struct GameState: Codable {
         self.totalLifetimeExp = try container.decodeIfPresent(Int.self, forKey: .totalLifetimeExp) ?? 0
         self.productiveApps = try container.decodeIfPresent([ProductiveApp].self, forKey: .productiveApps) ?? []
         self.allTimeStats = try container.decodeIfPresent([String: AppStats].self, forKey: .allTimeStats) ?? [:]
+        self.uiSettings = try container.decodeIfPresent(UISettings.self, forKey: .uiSettings) ?? UISettings()
     }
     
     mutating func addExp(_ amount: Int) {

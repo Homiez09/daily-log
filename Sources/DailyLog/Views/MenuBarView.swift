@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MenuBarView: View {
-    @StateObject private var trackingVM = TrackingViewModel()
+    @ObservedObject var trackingVM: TrackingViewModel
     @State private var showingHistory = false
     @State private var showingSettings = false
     
@@ -15,43 +15,50 @@ struct MenuBarView: View {
                     .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
             } else {
                 VStack(spacing: 0) {
-                    HeaderView(gameState: trackingVM.gameState)
-                        .padding(.horizontal)
-                        .padding(.top, 16)
-                        .padding(.bottom, 12)
-                    
-                    Divider().opacity(0.5)
+                    if trackingVM.gameState.uiSettings.showHeader {
+                        HeaderView(gameState: trackingVM.gameState)
+                            .padding(.horizontal)
+                            .padding(.top, 16)
+                            .padding(.bottom, 12)
+                        Divider().opacity(0.5)
+                    }
                     
                     ScrollView {
                         VStack(spacing: 16) {
-                            SystemDashboardView(monitor: trackingVM.systemMonitor)
-                            
-                            ProductiveAppsSectionView(trackingVM: trackingVM)
-                            
-                            Button(action: { 
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    showingHistory = true 
-                                }
-                            }) {
-                                HStack {
-                                    Image(systemName: "chart.bar.fill")
-                                    Text("Lifetime History")
-                                        .fontWeight(.semibold)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2)
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.blue.opacity(0.2), lineWidth: 1)
-                                )
+                            if trackingVM.gameState.uiSettings.showSystemMonitor {
+                                SystemDashboardView(monitor: trackingVM.systemMonitor)
                             }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.blue)
+                            
+                            if trackingVM.gameState.uiSettings.showProductiveApps {
+                                ProductiveAppsSectionView(trackingVM: trackingVM)
+                            }
+                            
+                            if trackingVM.gameState.uiSettings.showHistoryButton {
+                                Button(action: { 
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showingHistory = true 
+                                    }
+                                }) {
+                                    HStack {
+                                        Image(systemName: "chart.bar.fill")
+                                        Text("Lifetime History")
+                                            .fontWeight(.semibold)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                    }
+                                    .padding()
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.blue.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(.blue)
+                            }
                         }
                         .padding()
                     }
@@ -62,7 +69,7 @@ struct MenuBarView: View {
                 }
             }
         }
-        .frame(width: 320, height: 480)
+        .frame(width: 320, height: 520)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }
@@ -72,7 +79,6 @@ struct HeaderView: View {
     
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // Level Circle
             ZStack {
                 Circle()
                     .stroke(Color.blue.opacity(0.1), lineWidth: 4)
@@ -101,7 +107,6 @@ struct HeaderView: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
             Spacer()
         }
     }
@@ -136,7 +141,7 @@ struct ProductiveAppsSectionView: View {
                     Image(systemName: "app.badge.plus")
                         .font(.system(size: 24))
                         .foregroundColor(.secondary.opacity(0.5))
-                    Text("Add apps to earn coins")
+                    Text("Add apps to earn rewards")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -181,14 +186,7 @@ struct AppRow: View {
     
     var body: some View {
         HStack(spacing: 10) {
-            let icon: NSImage = {
-                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.bundleId) {
-                    return NSWorkspace.shared.icon(forFile: url.path)
-                }
-                return NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns")
-            }()
-            
-            Image(nsImage: icon)
+            Image(nsImage: trackingVM.getIcon(for: app.bundleId))
                 .resizable()
                 .frame(width: 22, height: 22)
             
@@ -228,33 +226,33 @@ struct FooterView: View {
     @Binding var showingSettings: Bool
     
     var body: some View {
-            HStack {
-                Button(action: { NSApplication.shared.terminate(nil) }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "power")
-                        Text("Quit")
-                    }
-                    .font(.system(size: 11, weight: .medium))
+        HStack {
+            Button(action: { NSApplication.shared.terminate(nil) }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "power")
+                    Text("Quit")
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                Button(action: { 
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showingSettings = true 
-                    }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "gearshape.fill")
-                        Text("Settings")
-                    }
-                    .font(.system(size: 11, weight: .bold))
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                .font(.system(size: 11, weight: .medium))
             }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+            
+            Spacer()
+            
+            Button(action: { 
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showingSettings = true 
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "gearshape.fill")
+                    Text("Settings")
+                }
+                .font(.system(size: 11, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.secondary)
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
@@ -330,7 +328,6 @@ struct AddAppPopover: View {
             }
             
             Divider().opacity(0.5)
-            
             Text("Only apps with windows can be tracked")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundColor(.secondary.opacity(0.7))
@@ -360,7 +357,7 @@ struct SystemDashboardView: View {
             }
             
             // CPU Cores Display
-            if !monitor.perCoreUsage.isEmpty {
+            if !monitor.stats.perCoreUsage.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("CPU CORES LOAD")
                         .font(.system(size: 8, weight: .bold))
@@ -368,11 +365,10 @@ struct SystemDashboardView: View {
                     
                     let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 4)
                     LazyVGrid(columns: columns, spacing: 4) {
-                        ForEach(0..<monitor.perCoreUsage.count, id: \.self) { index in
-                            let usage = monitor.perCoreUsage[index]
+                        ForEach(0..<monitor.stats.perCoreUsage.count, id: \.self) { index in
+                            let usage = monitor.stats.perCoreUsage[index]
                             let type = index < monitor.coreTypes.count ? monitor.coreTypes[index] : .unknown
                             let color: Color = (type == .efficiency) ? .yellow : (type == .performance ? .blue : .secondary)
-                            
                             CoreUsageBar(usage: usage, color: color)
                         }
                     }
@@ -381,10 +377,10 @@ struct SystemDashboardView: View {
             }
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                StatItemView(label: "CPU AVG", value: String(format: "%.2f%%", monitor.cpuUsage), progress: monitor.cpuUsage / 100, color: .blue)
-                StatItemView(label: "GPU", value: String(format: "%.2f%%", monitor.gpuUsage), progress: monitor.gpuUsage / 100, color: .purple)
-                StatItemView(label: "RAM", value: String(format: "%.2fGB", monitor.ramUsed), progress: monitor.ramUsed / monitor.ramTotal, color: .orange)
-                StatItemView(label: "TEMP", value: String(format: "%.2f°C", monitor.temperature), progress: monitor.temperature / 100, color: .red)
+                StatItemView(label: "CPU AVG", iconName: "cpu", value: String(format: "%.2f%%", monitor.stats.cpuUsage), progress: monitor.stats.cpuUsage / 100, color: .blue)
+                StatItemView(label: "GPU", iconName: "square.grid.3x3.fill", value: String(format: "%.2f%%", monitor.stats.gpuUsage), progress: monitor.stats.gpuUsage / 100, color: .purple)
+                StatItemView(label: "RAM", iconName: "memorychip", value: String(format: "%.2fGB", monitor.stats.ramUsed), progress: monitor.stats.ramUsed / monitor.stats.ramTotal, color: .orange)
+                StatItemView(label: "TEMP", iconName: "thermometer.medium", value: String(format: "%.2f°C", monitor.stats.temperature), progress: monitor.stats.temperature / 100, color: .red)
             }
             
             Divider().opacity(0.3)
@@ -394,7 +390,7 @@ struct SystemDashboardView: View {
                     Text("STORAGE")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.secondary)
-                    Text("\(String(format: "%.2f", monitor.diskUsed))GB / \(String(format: "%.2f", monitor.diskTotal))GB")
+                    Text("\(String(format: "%.2f", monitor.stats.diskUsed))GB / \(String(format: "%.2f", monitor.stats.diskTotal))GB")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                 }
                 Spacer()
@@ -402,7 +398,7 @@ struct SystemDashboardView: View {
                     Text("NETWORK")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.secondary)
-                    Text("↓\(formatSpeed(monitor.networkDownload)) ↑\(formatSpeed(monitor.networkUpload))")
+                    Text("↓\(formatSpeed(monitor.stats.networkDownload)) ↑\(formatSpeed(monitor.stats.networkUpload))")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                 }
             }
@@ -425,15 +421,11 @@ struct SystemDashboardView: View {
 struct CoreUsageBar: View {
     let usage: Double
     let color: Color
-    
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(color.opacity(0.1))
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(color)
-                    .frame(height: geo.size.height * CGFloat(min(max(usage / 100, 0), 1)))
+                RoundedRectangle(cornerRadius: 1).fill(color.opacity(0.1))
+                RoundedRectangle(cornerRadius: 1).fill(color).frame(height: geo.size.height * CGFloat(min(max(usage / 100, 0), 1)))
             }
         }
         .frame(height: 20)
@@ -442,31 +434,24 @@ struct CoreUsageBar: View {
 
 struct StatItemView: View {
     let label: String
+    let iconName: String
     let value: String
     let progress: Double
     let color: Color
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.secondary)
+            HStack(spacing: 4) {
+                Image(systemName: iconName).font(.system(size: 9)).foregroundColor(color)
+                Text(label).font(.system(size: 9, weight: .bold)).foregroundColor(.secondary)
                 Spacer()
-                Text(value)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                Text(value).font(.system(size: 10, weight: .bold, design: .monospaced))
             }
-            
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color.opacity(0.1))
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color)
-                        .frame(width: geo.size.width * CGFloat(min(max(progress, 0), 1)))
+                    RoundedRectangle(cornerRadius: 2).fill(color.opacity(0.1))
+                    RoundedRectangle(cornerRadius: 2).fill(color).frame(width: geo.size.width * CGFloat(min(max(progress, 0), 1)))
                 }
             }
-            .frame(height: 4)
         }
     }
 }

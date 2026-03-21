@@ -47,7 +47,55 @@ struct SettingsView: View {
                     
                     ScrollView {
                         VStack(spacing: 20) {
-                            // Data Section
+
+                            // Appearance Section
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("APPEARANCE")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.secondary)
+                                    .tracking(1)
+
+                                VStack(spacing: 0) {
+                                    ToggleRow(title: "Show Level & EXP", icon: "p.circle.fill", color: .blue, isOn: $trackingVM.gameState.uiSettings.showHeader)
+                                    Divider().opacity(0.2).padding(.leading, 44)
+                                    ToggleRow(title: "Show System Performance", icon: "cpu.fill", color: .purple, isOn: $trackingVM.gameState.uiSettings.showSystemMonitor)
+                                    Divider().opacity(0.2).padding(.leading, 44)
+                                    ToggleRow(title: "Show Productive Apps", icon: "app.badge.fill", color: .orange, isOn: $trackingVM.gameState.uiSettings.showProductiveApps)
+                                    Divider().opacity(0.2).padding(.leading, 44)
+                                    ToggleRow(title: "Show History Button", icon: "chart.bar.fill", color: .green, isOn: $trackingVM.gameState.uiSettings.showHistoryButton)
+                                }
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                )
+                            }
+
+                            Divider().opacity(0.5)
+                        
+                        // Menu Bar Config Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("MENU BAR DISPLAY")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .tracking(1)
+                            
+                            VStack(spacing: 0) {
+                                PickerRow(title: "Leading Info", selection: $trackingVM.gameState.uiSettings.menuBarLeading)
+//                                Divider().opacity(0.2).padding(.leading, 12)
+//                                PickerRow(title: "Trailing Info", selection: $trackingVM.gameState.uiSettings.menuBarTrailing)
+                            }
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                            )
+                        }
+                        
+                        // Data Section
+
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("DATA MANAGEMENT")
                                     .font(.system(size: 10, weight: .bold))
@@ -193,6 +241,59 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+}
+
+struct PickerRow: View {
+    let title: String
+    @Binding var selection: MenuBarMetric
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+            Spacer()
+            Picker("", selection: $selection) {
+                ForEach(MenuBarMetric.allCases, id: \.self) { metric in
+                    Text(metric.rawValue).tag(metric)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+}
+
+struct ToggleRow: View {
+    let title: String
+    let icon: String
+    let color: Color
+    @Binding var isOn: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 28, height: 28)
+                .background(color)
+                .cornerRadius(6)
+            
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+            
+            Spacer()
+            
+            Toggle("", isOn: $isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }
 

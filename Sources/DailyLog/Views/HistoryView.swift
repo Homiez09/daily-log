@@ -58,7 +58,7 @@ struct HistoryView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         ForEach(lifetimeApps, id: \.bundleId) { bid, stats in
-                            HistoryCard(bid: bid, stats: stats)
+                            HistoryCard(bid: bid, stats: stats, trackingVM: trackingVM)
                         }
                     }
                     .padding()
@@ -98,17 +98,11 @@ struct HistoryView: View {
 struct HistoryCard: View {
     let bid: String
     let stats: AppStats
+    @ObservedObject var trackingVM: TrackingViewModel
     
     var body: some View {
         HStack(spacing: 12) {
-            let icon: NSImage = {
-                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
-                    return NSWorkspace.shared.icon(forFile: url.path)
-                }
-                return NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns")
-            }()
-            
-            Image(nsImage: icon)
+            Image(nsImage: trackingVM.getIcon(for: bid))
                 .resizable()
                 .frame(width: 32, height: 32)
                 .padding(6)

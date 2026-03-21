@@ -8,7 +8,9 @@ class TrackingViewModel: ObservableObject {
     @Published var isProductiveAppActive: Bool = false
     var systemMonitor = SystemMonitorManager()
     
-    // Sort based on today's time stored in allTimeStats
+    // Icon Cache
+    @Published var iconCache: [String: NSImage] = [:]
+    
     var sortedProductiveApps: [ProductiveApp] {
         gameState.productiveApps.sorted {
             let time1 = gameState.allTimeStats[$0.bundleId]?.totalTimeToday ?? 0
@@ -18,11 +20,9 @@ class TrackingViewModel: ObservableObject {
     }
     
     private var pendingExpSeconds: TimeInterval = 0
-    private var pendingCoinSeconds: TimeInterval = 0
     private var timer: Timer?
     private var lastTick: Date = Date()
     private var currentDayString: String = ""
-    private var lastSaveTime: Date = Date()
     
     init() {
         let formatter = DateFormatter()
@@ -31,9 +31,13 @@ class TrackingViewModel: ObservableObject {
         
         loadState()
         startGlobalTracking()
+        
+        // Initial cache population
+        refreshIconCache()
     }
     
     func startGlobalTracking() {
+        timer?.invalidate()
         lastTick = Date()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.tick()
@@ -51,7 +55,6 @@ class TrackingViewModel: ObservableObject {
         let todayString = formatter.string(from: now)
         
         DispatchQueue.main.async {
-            // Day change reset
             if todayString != self.currentDayString {
                 self.currentDayString = todayString
                 for bid in self.gameState.allTimeStats.keys {
@@ -60,7 +63,6 @@ class TrackingViewModel: ObservableObject {
                 self.saveState()
             }
 
-            // 1. Online EXP
             self.pendingExpSeconds += delta
             if self.pendingExpSeconds >= 60 {
                 let mins = Int(self.pendingExpSeconds / 60)
@@ -69,22 +71,24 @@ class TrackingViewModel: ObservableObject {
                 self.saveState()
             }
             
-            // 2. Productive Time Tracking
             if let frontmost = NSWorkspace.shared.frontmostApplication,
                let bundleId = frontmost.bundleIdentifier {
                 
                 self.currentAppName = frontmost.localizedName ?? "Unknown"
                 
-                // Track time if it's in the PRODUCTIVE list
                 if let productiveApp = self.gameState.productiveApps.first(where: { $0.bundleId == bundleId }) {
                     self.isProductiveAppActive = true
                     
-                    // Update the stats vault
                     var stats = self.gameState.allTimeStats[bundleId] ?? AppStats()
                     stats.appName = productiveApp.appName
                     stats.totalTimeToday += delta
                     stats.totalLifetimeTime += delta
                     self.gameState.allTimeStats[bundleId] = stats
+                    
+                    // Cache icon if missing, but DO NOT trigger redraw here
+                    if self.iconCache[bundleId] == nil {
+                        self.silentCacheIcon(for: bundleId)
+                    }
                 } else {
                     self.isProductiveAppActive = false
                 }
@@ -92,9 +96,25 @@ class TrackingViewModel: ObservableObject {
         }
     }
     
+    // Non-triggering icon fetch for View use
+    func getIcon(for bundleId: String) -> NSImage {
+        return iconCache[bundleId] ?? NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns")
+    }
+    
+    private func silentCacheIcon(for bundleId: String) {
+        let icon: NSImage
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+            icon = NSWorkspace.shared.icon(forFile: url.path)
+        } else {
+            icon = NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns")
+        }
+        self.iconCache[bundleId] = icon
+    }
+    
     func addProductiveApp(bundleId: String, name: String) {
         if !gameState.productiveApps.contains(where: { $0.bundleId == bundleId }) {
             gameState.productiveApps.append(ProductiveApp(bundleId: bundleId, appName: name))
+            silentCacheIcon(for: bundleId)
             saveState()
         }
     }
@@ -106,6 +126,15 @@ class TrackingViewModel: ObservableObject {
     
     func getTimeToday(for bundleId: String) -> TimeInterval {
         return gameState.allTimeStats[bundleId]?.totalTimeToday ?? 0
+    }
+    
+    func refreshIconCache() {
+        for app in gameState.productiveApps {
+            silentCacheIcon(for: app.bundleId)
+        }
+        for bid in gameState.allTimeStats.keys {
+            silentCacheIcon(for: bid)
+        }
     }
     
     struct AppInfo: Identifiable {
@@ -123,23 +152,15 @@ class TrackingViewModel: ObservableObject {
                       let name = app.localizedName,
                       !addedBundleIds.contains(bid) else { return nil }
                 
-                let icon: NSImage
-                if let appIcon = app.icon {
-                    icon = appIcon
-                } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bid) {
-                    icon = NSWorkspace.shared.icon(forFile: url.path)
-                } else {
-                    icon = NSImage(named: NSImage.applicationIconName) ?? NSImage()
-                }
-                
+                let icon = app.icon ?? self.getIcon(for: bid)
                 return AppInfo(id: bid, name: name, icon: icon)
             }
             .sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
     
-    // Data Management
     func clearAllData() {
         gameState = GameState()
+        iconCache.removeAll()
         saveState()
         UserDefaults.standard.removeObject(forKey: "GameState")
         UserDefaults.standard.removeObject(forKey: "CurrentDay")
@@ -156,6 +177,7 @@ class TrackingViewModel: ObservableObject {
         guard let data = json.data(using: .utf8) else { return false }
         if let newState = try? JSONDecoder().decode(GameState.self, from: data) {
             self.gameState = newState
+            self.refreshIconCache()
             self.saveState()
             return true
         }

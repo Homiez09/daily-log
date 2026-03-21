@@ -8,19 +8,22 @@ enum CPUCoreType {
     case unknown
 }
 
+struct SystemStats {
+    var cpuUsage: Double = 0
+    var perCoreUsage: [Double] = []
+    var gpuUsage: Double = 0
+    var ramUsed: Double = 0
+    var ramTotal: Double = 0
+    var diskUsed: Double = 0
+    var diskTotal: Double = 0
+    var networkDownload: Double = 0
+    var networkUpload: Double = 0
+    var temperature: Double = 0
+}
+
 class SystemMonitorManager: ObservableObject {
-    @Published var cpuUsage: Double = 0
-    @Published var perCoreUsage: [Double] = []
-    @Published var coreTypes: [CPUCoreType] = [] // NEW: Type of each core
-    
-    @Published var ramUsed: Double = 0
-    @Published var ramTotal: Double = 0
-    @Published var gpuUsage: Double = 0
-    @Published var diskUsed: Double = 0
-    @Published var diskTotal: Double = 0
-    @Published var networkDownload: Double = 0
-    @Published var networkUpload: Double = 0
-    @Published var temperature: Double = 0
+    @Published var stats = SystemStats()
+    @Published var coreTypes: [CPUCoreType] = []
     
     private var timer: Timer?
     private var previousProcessorInfo: processor_info_array_t?
@@ -28,60 +31,75 @@ class SystemMonitorManager: ObservableObject {
     private var lastNetData: (in: UInt64, out: UInt64, time: Date)?
     
     init() {
-        self.ramTotal = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
+        self.stats.ramTotal = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
         detectCoreTypes()
-        updateStorage()
+        refreshStats()
         startMonitoring()
     }
     
-    // MARK: - Core Detection (Apple Silicon)
+    deinit {
+        stopMonitoring()
+        if let prev = previousProcessorInfo {
+            vm_deallocate(mach_task_self_, vm_address_t(bitPattern: Int(bitPattern: prev)), vm_size_t(previousProcessorInfoCount) * vm_size_t(MemoryLayout<integer_t>.size))
+        }
+    }
+    
+    func stopMonitoring() {
+        timer?.invalidate()
+        timer = nil
+    }
+    
     private func detectCoreTypes() {
-        // In Apple Silicon, cores are usually grouped: E-cores first, then P-cores.
-        // We use sysctl to get the counts for perflevel0 (P) and perflevel1 (E).
-        let eCoreCount = getSysctlInt("hw.perflevel1.logicalcpu") // Efficiency
-        let pCoreCount = getSysctlInt("hw.perflevel0.logicalcpu") // Performance
+        let eCoreCount = getSysctlInt("hw.perflevel1.logicalcpu")
+        let pCoreCount = getSysctlInt("hw.perflevel0.logicalcpu")
         let totalCores = ProcessInfo.processInfo.activeProcessorCount
-        
         var types: [CPUCoreType] = []
-        
-        // Strategy: fill E-cores first, then P-cores (standard macOS order)
         for _ in 0..<eCoreCount { types.append(.efficiency) }
         for _ in 0..<pCoreCount { types.append(.performance) }
-        
-        // Fallback if sysctl fails or returns 0
         if types.isEmpty {
             for _ in 0..<totalCores { types.append(.unknown) }
         }
-        
         self.coreTypes = types
     }
     
     private func getSysctlInt(_ name: String) -> Int {
         var size = MemoryLayout<Int>.size
         var value = Int()
-        if sysctlbyname(name, &value, &size, nil, 0) == 0 {
-            return value
-        }
+        if sysctlbyname(name, &value, &size, nil, 0) == 0 { return value }
         return 0
     }
     
     func startMonitoring() {
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.refreshStats()
         }
+        // Ensure timer doesn't stop when menu is open
         RunLoop.current.add(timer!, forMode: .common)
     }
     
     func refreshStats() {
-        updateCPU()
-        updateRAM()
-        updateGPU()
-        updateNetwork()
-        updateTemperature()
-        updateStorage()
+        var newStats = self.stats
+        
+        // 1. CPU
+        updateCPU(into: &newStats)
+        // 2. RAM
+        updateRAM(into: &newStats)
+        // 3. GPU
+        updateGPU(into: &newStats)
+        // 4. Storage
+        updateStorage(into: &newStats)
+        // 5. Network
+        updateNetwork(into: &newStats)
+        // 6. Temp
+        updateTemperature(into: &newStats)
+        
+        DispatchQueue.main.async {
+            self.stats = newStats
+        }
     }
     
-    private func updateCPU() {
+    private func updateCPU(into stats: inout SystemStats) {
         var processorCount: mach_msg_type_number_t = 0
         var processorInfo: processor_info_array_t?
         var infoCount: mach_msg_type_number_t = 0
@@ -90,7 +108,7 @@ class SystemMonitorManager: ObservableObject {
         
         if result == KERN_SUCCESS, let info = processorInfo {
             var coreUsages: [Double] = []
-            var totalCombinedUsage: Double = 0
+            var totalCombined: Double = 0
             
             for i in 0..<Int(processorCount) {
                 let index = i * Int(CPU_STATE_MAX)
@@ -99,87 +117,67 @@ class SystemMonitorManager: ObservableObject {
                 let idle = info[index + Int(CPU_STATE_IDLE)]
                 let nice = info[index + Int(CPU_STATE_NICE)]
                 
-                if let prevInfo = previousProcessorInfo {
-                    let prevUser = prevInfo[index + Int(CPU_STATE_USER)]
-                    let prevSystem = prevInfo[index + Int(CPU_STATE_SYSTEM)]
-                    let prevIdle = prevInfo[index + Int(CPU_STATE_IDLE)]
-                    let prevNice = prevInfo[index + Int(CPU_STATE_NICE)]
+                if let prev = previousProcessorInfo {
+                    let pUser = prev[index + Int(CPU_STATE_USER)]
+                    let pSystem = prev[index + Int(CPU_STATE_SYSTEM)]
+                    let pIdle = prev[index + Int(CPU_STATE_IDLE)]
+                    let pNice = prev[index + Int(CPU_STATE_NICE)]
                     
-                    let diffUser = user - prevUser
-                    let diffSystem = system - prevSystem
-                    let diffIdle = idle - prevIdle
-                    let diffNice = nice - prevNice
-                    let total = diffUser + diffSystem + diffIdle + diffNice
-                    
-                    if total > 0 {
-                        let usage = Double(diffUser + diffSystem + diffNice) / Double(total) * 100.0
+                    let diffTotal = (user - pUser) + (system - pSystem) + (idle - pIdle) + (nice - pNice)
+                    if diffTotal > 0 {
+                        let usage = Double((user - pUser) + (system - pSystem) + (nice - pNice)) / Double(diffTotal) * 100.0
                         coreUsages.append(usage)
-                        totalCombinedUsage += usage
+                        totalCombined += usage
                     }
                 }
             }
             
             if let prev = previousProcessorInfo {
-                vm_deallocate(mach_task_self_, vm_address_t(bitPattern: prev), vm_size_t(previousProcessorInfoCount) * vm_size_t(MemoryLayout<integer_t>.size))
+                vm_deallocate(mach_task_self_, vm_address_t(bitPattern: Int(bitPattern: prev)), vm_size_t(previousProcessorInfoCount) * vm_size_t(MemoryLayout<integer_t>.size))
             }
             
             previousProcessorInfo = info
             previousProcessorInfoCount = infoCount
             
-            DispatchQueue.main.async {
-                self.perCoreUsage = coreUsages
-                if !coreUsages.isEmpty {
-                    self.cpuUsage = totalCombinedUsage / Double(coreUsages.count)
-                }
+            stats.perCoreUsage = coreUsages
+            if !coreUsages.isEmpty {
+                stats.cpuUsage = totalCombined / Double(coreUsages.count)
             }
         }
     }
     
-    private func updateRAM() {
-        var stats = vm_statistics64()
+    private func updateRAM(into stats: inout SystemStats) {
+        var vmStats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &stats) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
-            }
-        }
-        if result == KERN_SUCCESS {
+        if host_statistics64(mach_host_self(), HOST_VM_INFO64, withUnsafeMutablePointer(to: &vmStats) { $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { $0 } }, &count) == KERN_SUCCESS {
             let pageSize = UInt64(vm_kernel_page_size)
-            let usedPages = UInt64(stats.active_count) + UInt64(stats.wire_count) + UInt64(stats.compressor_page_count)
-            DispatchQueue.main.async { self.ramUsed = Double(usedPages * pageSize) / (1024 * 1024 * 1024) }
+            let used = UInt64(vmStats.active_count + vmStats.wire_count + vmStats.compressor_page_count) * pageSize
+            stats.ramUsed = Double(used) / (1024 * 1024 * 1024)
         }
     }
     
-    private func updateStorage() {
-        let fileURL = URL(fileURLWithPath: "/")
-        do {
-            let divider = 1_000_000_000.0
-            let values = try fileURL.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey])
-            if let total = values.volumeTotalCapacity, let available = values.volumeAvailableCapacityForImportantUsage {
-                let t = Double(total)
-                let a = Double(available)
-                DispatchQueue.main.async {
-                    self.diskTotal = t / divider
-                    self.diskUsed = (t - a) / divider
-                }
-            }
-        } catch { print(error) }
+    private func updateStorage(into stats: inout SystemStats) {
+        let url = URL(fileURLWithPath: "/")
+        if let values = try? url.resourceValues(forKeys: [.volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey]) {
+            let div = 1_000_000_000.0
+            stats.diskTotal = Double(values.volumeTotalCapacity ?? 0) / div
+            stats.diskUsed = (Double(values.volumeTotalCapacity ?? 0) - Double(values.volumeAvailableCapacityForImportantUsage ?? 0)) / div
+        }
     }
     
-    private func updateGPU() {
+    private func updateGPU(into stats: inout SystemStats) {
         let matching = IOServiceMatching("IOAccelerator")
         var iterator: io_iterator_t = 0
         if IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == kIOReturnSuccess {
             var service = IOIteratorNext(iterator)
             while service != 0 {
-                var properties: Unmanaged<CFMutableDictionary>?
-                if IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == kIOReturnSuccess,
-                   let dict = properties?.takeRetainedValue() as? [String: Any],
-                   let stats = dict["PerformanceStatistics"] as? [String: Any] {
-                    let utilization = stats["Device Utilization %"] as? Int ?? 0
-                    DispatchQueue.main.async { self.gpuUsage = Double(utilization) }
+                var props: Unmanaged<CFMutableDictionary>?
+                if IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+                   let dict = props?.takeRetainedValue() as? [String: Any],
+                   let perf = dict["PerformanceStatistics"] as? [String: Any] {
+                    stats.gpuUsage = Double(perf["Device Utilization %"] as? Int ?? 0)
                     IOObjectRelease(service)
-                    break 
+                    break
                 }
                 IOObjectRelease(service)
                 service = IOIteratorNext(iterator)
@@ -188,31 +186,18 @@ class SystemMonitorManager: ObservableObject {
         }
     }
     
-    private func updateTemperature() {
-        let state = ProcessInfo.processInfo.thermalState
-        var base: Double = 38.0
-        switch state {
-        case .nominal: base = 38.0; case .fair: base = 48.0; case .serious: base = 65.0; case .critical: base = 82.0; @unknown default: base = 35.0
-        }
-        DispatchQueue.main.async { self.temperature = base + (self.cpuUsage / 10.0) }
-    }
-    
-    private func updateNetwork() {
+    private func updateNetwork(into stats: inout SystemStats) {
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&ifaddr) == 0 else { return }
         defer { freeifaddrs(ifaddr) }
-        var currentIn: UInt64 = 0; var currentOut: UInt64 = 0
+        var cin: UInt64 = 0; var cout: UInt64 = 0
         var ptr = ifaddr
         while ptr != nil {
-            let flags = Int32(ptr!.pointee.ifa_flags)
             let name = String(cString: ptr!.pointee.ifa_name)
-            if (flags & (IFF_UP|IFF_RUNNING|IFF_LOOPBACK)) == (IFF_UP|IFF_RUNNING) {
-                if name.hasPrefix("en") || name.hasPrefix("ap") {
-                    if let data = ptr!.pointee.ifa_data {
-                        let networkData = data.assumingMemoryBound(to: if_data.self)
-                        currentIn += UInt64(networkData.pointee.ifi_ibytes)
-                        currentOut += UInt64(networkData.pointee.ifi_obytes)
-                    }
+            if name.hasPrefix("en") || name.hasPrefix("ap") {
+                if let data = ptr!.pointee.ifa_data {
+                    let nd = data.assumingMemoryBound(to: if_data.self)
+                    cin += UInt64(nd.pointee.ifi_ibytes); cout += UInt64(nd.pointee.ifi_obytes)
                 }
             }
             ptr = ptr!.pointee.ifa_next
@@ -221,12 +206,19 @@ class SystemMonitorManager: ObservableObject {
         if let last = lastNetData {
             let diff = now.timeIntervalSince(last.time)
             if diff > 0 {
-                DispatchQueue.main.async {
-                    self.networkDownload = Double(currentIn - last.in) / (1024 * 1024) / diff
-                    self.networkUpload = Double(currentOut - last.out) / (1024 * 1024) / diff
-                }
+                stats.networkDownload = Double(cin - last.in) / (1024*1024) / diff
+                stats.networkUpload = Double(cout - last.out) / (1024*1024) / diff
             }
         }
-        lastNetData = (currentIn, currentOut, now)
+        lastNetData = (cin, cout, now)
+    }
+    
+    private func updateTemperature(into stats: inout SystemStats) {
+        let state = ProcessInfo.processInfo.thermalState
+        var base = 38.0
+        switch state {
+        case .nominal: base = 38.0; case .fair: base = 48.0; case .serious: base = 65.0; case .critical: base = 82.0; @unknown default: base = 35.0
+        }
+        stats.temperature = base + (stats.cpuUsage / 10.0)
     }
 }
