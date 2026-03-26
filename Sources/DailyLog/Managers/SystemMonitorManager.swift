@@ -231,4 +231,17 @@ class SystemMonitorManager: ObservableObject {
         }
         stats.temperature = base + (stats.cpuUsage / 10.0)
     }
+    
+    func getMacCPUName() -> String {
+        var size: Int = 0
+
+        sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
+        
+        guard size > 0 else { return "Apple Silicon" }
+        
+        var cpuString = [CChar](repeating: 0, count: size)
+        sysctlbyname("machdep.cpu.brand_string", &cpuString, &size, nil, 0)
+        
+        return String(cString: cpuString)
+    }
 }

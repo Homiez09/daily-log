@@ -90,6 +90,8 @@ struct GameState: Codable {
         return "\(Int(value))m"
     }
     
+    
+    
     private func formatNumber(_ num: Double) -> String {
         return num.truncatingRemainder(dividingBy: 1) == 0 ? String(format: "%.0f", num) : String(format: "%.1f", num)
     }

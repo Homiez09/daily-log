@@ -348,7 +348,7 @@ struct SystemDashboardView: View {
                     .foregroundColor(.secondary)
                     .tracking(1)
                 Spacer()
-                Text("Apple Silicon")
+                Text(monitor.getMacCPUName())
                     .font(.system(size: 8, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -362,7 +362,7 @@ struct SystemDashboardView: View {
                     Text("CPU CORES LOAD")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.secondary)
-                    
+                   
                     let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 4)
                     LazyVGrid(columns: columns, spacing: 4) {
                         ForEach(0..<monitor.stats.perCoreUsage.count, id: \.self) { index in
@@ -376,12 +376,15 @@ struct SystemDashboardView: View {
                 .padding(.bottom, 4)
             }
             
+
+            StatItemView(label: "CPU", iconName: "cpu", value: String(format: "%.2f%%", monitor.stats.cpuUsage), progress: monitor.stats.cpuUsage / 100, color: .blue)
+            
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                StatItemView(label: "CPU AVG", iconName: "cpu", value: String(format: "%.2f%%", monitor.stats.cpuUsage), progress: monitor.stats.cpuUsage / 100, color: .blue)
                 StatItemView(label: "GPU", iconName: "square.grid.3x3.fill", value: String(format: "%.2f%%", monitor.stats.gpuUsage), progress: monitor.stats.gpuUsage / 100, color: .purple)
                 StatItemView(label: "RAM", iconName: "memorychip", value: String(format: "%.2fGB", monitor.stats.ramUsed), progress: monitor.stats.ramUsed / monitor.stats.ramTotal, color: .orange)
-                StatItemView(label: "TEMP", iconName: "thermometer.medium", value: String(format: "%.2f°C", monitor.stats.temperature), progress: monitor.stats.temperature / 100, color: .red)
             }
+            
+            StatItemView(label: "TEMP", iconName: "thermometer.medium", value: String(format: "%.2f°C", monitor.stats.temperature), progress: nil, color: .red)
             
             Divider().opacity(0.3)
             
@@ -436,7 +439,7 @@ struct StatItemView: View {
     let label: String
     let iconName: String
     let value: String
-    let progress: Double
+    let progress: Double?
     let color: Color
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -446,10 +449,15 @@ struct StatItemView: View {
                 Spacer()
                 Text(value).font(.system(size: 10, weight: .bold, design: .monospaced))
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2).fill(color.opacity(0.1))
-                    RoundedRectangle(cornerRadius: 2).fill(color).frame(width: geo.size.width * CGFloat(min(max(progress, 0), 1)))
+
+            if let validProgress = progress {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2).fill(color.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(color)
+                            .frame(width: geo.size.width * CGFloat(min(max(validProgress, 0), 1)))
+                    }
                 }
             }
         }
