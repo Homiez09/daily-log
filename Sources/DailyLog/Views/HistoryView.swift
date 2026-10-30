@@ -42,8 +42,6 @@ struct HistoryView: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
             
-            Divider().opacity(0.5)
-            
             if lifetimeApps.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "clock.badge.exclamationmark")
@@ -65,8 +63,6 @@ struct HistoryView: View {
                 }
             }
             
-            Divider().opacity(0.5)
-            
             // Summary Footer
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -82,9 +78,8 @@ struct HistoryView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .popoverBackground()
     }
     
     private func formatTotalTime() -> String {
@@ -129,12 +124,7 @@ struct HistoryCard: View {
             }
         }
         .padding(12)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
-        )
+        .glassCard(cornerRadius: 18)
     }
     
     private func formatTime(_ seconds: TimeInterval) -> String {

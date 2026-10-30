@@ -1,76 +1,100 @@
 import SwiftUI
 
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 struct MenuBarView: View {
     @ObservedObject var trackingVM: TrackingViewModel
     @State private var showingHistory = false
     @State private var showingSettings = false
-    
+    // Measured height of the dashboard content; lets the popover shrink to fit instead of leaving a
+    // large empty area when only a few sections are enabled.
+    @State private var dashboardContentHeight: CGFloat = 460
+
+    private let popoverWidth: CGFloat = 340
+    /// Tall enough for the whole dashboard on big screens, but never taller than the display can show.
+    private var maxDashboardHeight: CGFloat {
+        min(600, (NSScreen.main?.visibleFrame.height ?? 800) - 190)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if showingHistory {
                 HistoryView(trackingVM: trackingVM, isPresented: $showingHistory)
+                    .frame(height: 560)
                     .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .trailing)))
             } else if showingSettings {
                 SettingsView(trackingVM: trackingVM, isPresented: $showingSettings)
+                    .frame(height: 560)
                     .transition(.asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .leading)))
             } else {
                 VStack(spacing: 0) {
                     if trackingVM.gameState.uiSettings.showHeader {
                         HeaderView(gameState: trackingVM.gameState)
-                            .padding(.horizontal)
+                            .padding(.horizontal, 16)
                             .padding(.top, 16)
-                            .padding(.bottom, 12)
-                        Divider().opacity(0.5)
+                            .padding(.bottom, 10)
                     }
-                    
+
                     ScrollView {
-                        VStack(spacing: 16) {
-                            if trackingVM.gameState.uiSettings.showSystemMonitor {
-                                SystemDashboardView(monitor: trackingVM.systemMonitor)
-                            }
-                            
-                            if trackingVM.gameState.uiSettings.showProductiveApps {
-                                ProductiveAppsSectionView(trackingVM: trackingVM)
-                            }
-                            
-                            if trackingVM.gameState.uiSettings.showHistoryButton {
-                                Button(action: { 
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        showingHistory = true 
-                                    }
-                                }) {
-                                    HStack {
-                                        Image(systemName: "chart.bar.fill")
-                                        Text("Lifetime History")
-                                            .fontWeight(.semibold)
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption2)
-                                    }
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.blue.opacity(0.1))
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.blue.opacity(0.2), lineWidth: 1)
-                                    )
+                        GlassGroup(spacing: 14) {
+                            VStack(spacing: 14) {
+                                if trackingVM.gameState.uiSettings.showSystemMonitor {
+                                    SystemDashboardView(monitor: trackingVM.systemMonitor, trackingVM: trackingVM)
                                 }
-                                .buttonStyle(.plain)
-                                .foregroundColor(.blue)
+
+                                if trackingVM.gameState.uiSettings.showProcessMonitor {
+                                    ProcessMonitorView(trackingVM: trackingVM)
+                                }
+
+                                if trackingVM.gameState.uiSettings.showProductiveApps {
+                                    ProductiveAppsSectionView(trackingVM: trackingVM)
+                                }
+
+                                if trackingVM.gameState.uiSettings.showHistoryButton {
+                                    Button(action: {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showingHistory = true
+                                        }
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "chart.bar.fill")
+                                            Text("Lifetime History")
+                                                .fontWeight(.semibold)
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption2)
+                                        }
+                                        .padding(14)
+                                        .frame(maxWidth: .infinity)
+                                        .glassCard(cornerRadius: 18, tint: .blue)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundColor(.blue)
+                                }
                             }
                         }
-                        .padding()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            GeometryReader { proxy in
+                                Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                            }
+                        )
                     }
-                    
-                    Divider().opacity(0.5)
-                    
+                    .scrollIndicators(.hidden)
+                    .frame(height: min(max(dashboardContentHeight, 120), maxDashboardHeight))
+                    .onPreferenceChange(ContentHeightKey.self) { dashboardContentHeight = $0 }
+
                     FooterView(showingSettings: $showingSettings)
                 }
             }
         }
-        .frame(width: 320, height: 520)
-        .background(Color(NSColor.windowBackgroundColor))
+        .frame(width: popoverWidth)
+        .environment(\.glassCardsEnabled, trackingVM.gameState.uiSettings.liquidGlassCards)
+        .popoverBackground()
     }
 }
 
@@ -109,6 +133,9 @@ struct HeaderView: View {
             }
             Spacer()
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .glassCard(cornerRadius: 24)
     }
 }
 
@@ -173,10 +200,8 @@ struct ProductiveAppsSectionView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .padding(14)
+        .glassCard(cornerRadius: 22)
     }
 }
 
@@ -253,9 +278,8 @@ struct FooterView: View {
             .buttonStyle(.plain)
             .foregroundColor(.secondary)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
     }
 }
 
@@ -337,129 +361,88 @@ struct AddAppPopover: View {
     }
 }
 
-struct SystemDashboardView: View {
-    @ObservedObject var monitor: SystemMonitorManager
-    
+struct ProcessMonitorView: View {
+    @ObservedObject var trackingVM: TrackingViewModel
+
+    private var cpuThreshold: Double { trackingVM.gameState.uiSettings.cpuAlertThreshold }
+    private var ramThreshold: Double { trackingVM.gameState.uiSettings.ramAlertThreshold }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("SYSTEM PERFORMANCE")
-                    .font(.system(size: 10, weight: .bold))
+        VStack(alignment: .leading, spacing: 10) {
+            Text("TOP PROCESSES")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.secondary)
+                .tracking(1)
+
+            let processes = Array(trackingVM.systemMonitor.stats.topProcesses.prefix(6))
+
+            if processes.isEmpty {
+                Text("Gathering process data...")
+                    .font(.caption2)
                     .foregroundColor(.secondary)
-                    .tracking(1)
-                Spacer()
-                Text(monitor.getMacCPUName())
-                    .font(.system(size: 8, weight: .bold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(4)
-            }
-            
-            // CPU Cores Display
-            if !monitor.stats.perCoreUsage.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("CPU CORES LOAD")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.secondary)
-                   
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 4)
-                    LazyVGrid(columns: columns, spacing: 4) {
-                        ForEach(0..<monitor.stats.perCoreUsage.count, id: \.self) { index in
-                            let usage = monitor.stats.perCoreUsage[index]
-                            let type = index < monitor.coreTypes.count ? monitor.coreTypes[index] : .unknown
-                            let color: Color = (type == .efficiency) ? .yellow : (type == .performance ? .blue : .secondary)
-                            CoreUsageBar(usage: usage, color: color)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(processes.enumerated()), id: \.element.id) { index, process in
+                        ProcessRow(process: process, cpuThreshold: cpuThreshold, ramThreshold: ramThreshold)
+                        if index < processes.count - 1 {
+                            Divider().opacity(0.3).padding(.leading, 32)
                         }
                     }
                 }
-                .padding(.bottom, 4)
-            }
-            
-
-            StatItemView(label: "CPU", iconName: "cpu", value: String(format: "%.2f%%", monitor.stats.cpuUsage), progress: monitor.stats.cpuUsage / 100, color: .blue)
-            
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                StatItemView(label: "GPU", iconName: "square.grid.3x3.fill", value: String(format: "%.2f%%", monitor.stats.gpuUsage), progress: monitor.stats.gpuUsage / 100, color: .purple)
-                StatItemView(label: "RAM", iconName: "memorychip", value: String(format: "%.2fGB", monitor.stats.ramUsed), progress: monitor.stats.ramUsed / monitor.stats.ramTotal, color: .orange)
-            }
-            
-            StatItemView(label: "TEMP", iconName: "thermometer.medium", value: String(format: "%.2f°C", monitor.stats.temperature), progress: nil, color: .red)
-            
-            Divider().opacity(0.3)
-            
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("STORAGE")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.secondary)
-                    Text("\(String(format: "%.2f", monitor.stats.diskUsed))GB / \(String(format: "%.2f", monitor.stats.diskTotal))GB")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("NETWORK")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(.secondary)
-                    Text("↓\(formatSpeed(monitor.stats.networkDownload)) ↑\(formatSpeed(monitor.stats.networkUpload))")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                }
             }
         }
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-    }
-    
-    private func formatSpeed(_ mbps: Double) -> String {
-        if mbps < 1 {
-            let kbps = mbps * 1024
-            return kbps < 1 ? "0K" : String(format: "%.0fK", kbps)
-        }
-        return String(format: "%.2fM", mbps)
+        .padding(14)
+        .glassCard(cornerRadius: 22)
     }
 }
 
-struct CoreUsageBar: View {
-    let usage: Double
-    let color: Color
+struct ProcessRow: View {
+    let process: ProcessStats
+    let cpuThreshold: Double
+    let ramThreshold: Double
+
+    private var isOverCPU: Bool { process.cpuUsage >= cpuThreshold }
+    private var isOverRAM: Bool { process.ramUsageMB >= ramThreshold }
+
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 1).fill(color.opacity(0.1))
-                RoundedRectangle(cornerRadius: 1).fill(color).frame(height: geo.size.height * CGFloat(min(max(usage / 100, 0), 1)))
+        HStack(spacing: 10) {
+            if let icon = process.icon {
+                Image(nsImage: icon).resizable().frame(width: 18, height: 18)
+            } else {
+                Image(systemName: "app.dashed")
+                    .frame(width: 18, height: 18)
+                    .foregroundColor(.secondary)
             }
+
+            Text(process.name)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+
+            if isOverCPU || isOverRAM {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 8))
+                    .foregroundColor(.red)
+            }
+
+            Spacer()
+
+            Text(String(format: "%.0f%%", process.cpuUsage))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(isOverCPU ? .red : .secondary)
+                .frame(width: 42, alignment: .trailing)
+
+            Text(formatRAM(process.ramUsageMB))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(isOverRAM ? .red : .secondary)
+                .frame(width: 54, alignment: .trailing)
         }
-        .frame(height: 20)
+        .padding(.vertical, 5)
+    }
+
+    private func formatRAM(_ mb: Double) -> String {
+        mb >= 1024 ? String(format: "%.1fGB", mb / 1024) : String(format: "%.0fMB", mb)
     }
 }
 
-struct StatItemView: View {
-    let label: String
-    let iconName: String
-    let value: String
-    let progress: Double?
-    let color: Color
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Image(systemName: iconName).font(.system(size: 9)).foregroundColor(color)
-                Text(label).font(.system(size: 9, weight: .bold)).foregroundColor(.secondary)
-                Spacer()
-                Text(value).font(.system(size: 10, weight: .bold, design: .monospaced))
-            }
-
-            if let validProgress = progress {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2).fill(color.opacity(0.1))
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(color)
-                            .frame(width: geo.size.width * CGFloat(min(max(validProgress, 0), 1)))
-                    }
-                }
-            }
-        }
-    }
-}

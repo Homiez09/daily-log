@@ -8,13 +8,9 @@ echo "🚀 Building DailyLog..."
 # 2. บิลด์โปรเจกต์แบบ Release
 swift build -c release
 
-# 3. สร้างโครงสร้าง .app
+# 3. สร้างโครงสร้าง .app (binary หลัก + fan helper + Info.plist + ไอคอน)
 APP_NAME="DailyLog.app"
-mkdir -p "$APP_NAME/Contents/MacOS"
-
-# 4. คัดลอกไฟล์ Binary และ Info.plist
-cp .build/release/DailyLog "$APP_NAME/Contents/MacOS/"
-cp Info.plist "$APP_NAME/Contents/"
+./scripts/bundle.sh "$APP_NAME"
 
 echo "✅ Build Complete: $APP_NAME"
 

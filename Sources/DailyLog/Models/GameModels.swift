@@ -7,6 +7,18 @@ enum MenuBarMetric: String, Codable, CaseIterable {
     case storage = "Disk"
     case temp = "Temp"
     case network = "Net"
+    case fan = "Fan"
+}
+
+enum MenuBarStyle: String, Codable, CaseIterable {
+    case solid = "Bar"
+    case line = "Line"
+    case wave = "Wave"
+}
+
+enum FanControlMode: String, Codable, CaseIterable {
+    case auto = "Auto"
+    case manual = "Manual"
 }
 
 struct ProductiveApp: Identifiable, Codable, Equatable {
@@ -26,10 +38,55 @@ struct UISettings: Codable {
     var showSystemMonitor: Bool = true
     var showProductiveApps: Bool = true
     var showHistoryButton: Bool = true
-    
-    // New Menu Bar Config
+    var showProcessMonitor: Bool = true
+
+    // Menu Bar Config
     var menuBarLeading: MenuBarMetric = .cpu
     var menuBarTrailing: MenuBarMetric = .ram
+    var showTrailingMetric: Bool = false
+    var menuBarStyle: MenuBarStyle = .solid
+    /// false = monochrome template image that adapts to the menu bar; true = coloured graphs.
+    var menuBarColored: Bool = false
+
+    /// Real Liquid Glass cards (macOS 26+). Off by default: each glass layer is extra WindowServer GPU
+    /// work, which adds up fast over a live video wallpaper.
+    var liquidGlassCards: Bool = false
+
+    // Fan control. `fanManualFraction` is a 0...1 position inside each fan's own min...max RPM range.
+    var fanControlMode: FanControlMode = .auto
+    var fanManualFraction: Double = 0.5
+
+    // Per-process alert thresholds
+    var cpuAlertThreshold: Double = 50.0   // percent
+    var ramAlertThreshold: Double = 500.0  // MB
+
+    init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case showHeader, showSystemMonitor, showProductiveApps, showHistoryButton, showProcessMonitor
+        case menuBarLeading, menuBarTrailing, menuBarStyle, cpuAlertThreshold, ramAlertThreshold
+        case showTrailingMetric, menuBarColored, fanControlMode, fanManualFraction, liquidGlassCards
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showHeader = try container.decodeIfPresent(Bool.self, forKey: .showHeader) ?? true
+        showSystemMonitor = try container.decodeIfPresent(Bool.self, forKey: .showSystemMonitor) ?? true
+        showProductiveApps = try container.decodeIfPresent(Bool.self, forKey: .showProductiveApps) ?? true
+        showHistoryButton = try container.decodeIfPresent(Bool.self, forKey: .showHistoryButton) ?? true
+        showProcessMonitor = try container.decodeIfPresent(Bool.self, forKey: .showProcessMonitor) ?? true
+        menuBarLeading = try container.decodeIfPresent(MenuBarMetric.self, forKey: .menuBarLeading) ?? .cpu
+        menuBarTrailing = try container.decodeIfPresent(MenuBarMetric.self, forKey: .menuBarTrailing) ?? .ram
+        menuBarStyle = try container.decodeIfPresent(MenuBarStyle.self, forKey: .menuBarStyle) ?? .solid
+        cpuAlertThreshold = try container.decodeIfPresent(Double.self, forKey: .cpuAlertThreshold) ?? 50.0
+        ramAlertThreshold = try container.decodeIfPresent(Double.self, forKey: .ramAlertThreshold) ?? 500.0
+        showTrailingMetric = try container.decodeIfPresent(Bool.self, forKey: .showTrailingMetric) ?? false
+        menuBarColored = try container.decodeIfPresent(Bool.self, forKey: .menuBarColored) ?? false
+        liquidGlassCards = try container.decodeIfPresent(Bool.self, forKey: .liquidGlassCards) ?? false
+        fanControlMode = try container.decodeIfPresent(FanControlMode.self, forKey: .fanControlMode) ?? .auto
+        let storedFraction = try container.decodeIfPresent(Double.self, forKey: .fanManualFraction) ?? 0.5
+        fanManualFraction = storedFraction.isFinite ? min(max(storedFraction, 0), 1) : 0.5
+    }
 }
 
 struct GameState: Codable {

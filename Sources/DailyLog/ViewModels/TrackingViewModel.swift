@@ -7,6 +7,7 @@ class TrackingViewModel: ObservableObject {
     @Published var currentAppName: String = "Monitoring..."
     @Published var isProductiveAppActive: Bool = false
     var systemMonitor = SystemMonitorManager()
+    let fanController = FanController.shared
     
     // Icon Cache
     @Published var iconCache: [String: NSImage] = [:]
@@ -74,10 +75,13 @@ class TrackingViewModel: ObservableObject {
             if let frontmost = NSWorkspace.shared.frontmostApplication,
                let bundleId = frontmost.bundleIdentifier {
                 
-                self.currentAppName = frontmost.localizedName ?? "Unknown"
+                // @Published fires on every assignment, even with an equal value; guarding avoids
+                // re-rendering the popover and the menu bar image once a second for nothing.
+                let frontmostName = frontmost.localizedName ?? "Unknown"
+                if self.currentAppName != frontmostName { self.currentAppName = frontmostName }
                 
                 if let productiveApp = self.gameState.productiveApps.first(where: { $0.bundleId == bundleId }) {
-                    self.isProductiveAppActive = true
+                    if !self.isProductiveAppActive { self.isProductiveAppActive = true }
                     
                     var stats = self.gameState.allTimeStats[bundleId] ?? AppStats()
                     stats.appName = productiveApp.appName
@@ -89,7 +93,7 @@ class TrackingViewModel: ObservableObject {
                     if self.iconCache[bundleId] == nil {
                         self.silentCacheIcon(for: bundleId)
                     }
-                } else {
+                } else if self.isProductiveAppActive {
                     self.isProductiveAppActive = false
                 }
             }
@@ -178,6 +182,7 @@ class TrackingViewModel: ObservableObject {
         do {
             let newState = try JSONDecoder().decode(GameState.self, from: data)
             self.gameState = newState
+            self.gameState.uiSettings.fanControlMode = .auto
             self.refreshIconCache()
             self.saveState()
             return nil
@@ -197,12 +202,25 @@ class TrackingViewModel: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: "GameState"),
            let state = try? JSONDecoder().decode(GameState.self, from: data) {
             self.gameState = state
+            // A manual fan override needs a fresh admin approval every launch and the helper always
+            // hands the fans back on exit, so a saved "Manual" would be a lie. Keep only the speed.
+            self.gameState.uiSettings.fanControlMode = .auto
         }
         if let day = UserDefaults.standard.string(forKey: "CurrentDay") {
             self.currentDayString = day
         }
     }
     
+    /// Switches fan control; `fraction` (0...1) replaces the saved manual speed when given (BOOST passes 1).
+    func setFanMode(_ mode: FanControlMode, fraction: Double? = nil) {
+        if let fraction { gameState.uiSettings.fanManualFraction = fraction }
+        gameState.uiSettings.fanControlMode = mode
+        fanController.apply(mode: mode, fraction: gameState.uiSettings.fanManualFraction) { [weak self] error in
+            // Declined admin prompt or a refused write: show what is really happening.
+            if error != nil, mode == .manual { self?.gameState.uiSettings.fanControlMode = .auto }
+        }
+    }
+
     func resetProgressForTimer(delta: TimeInterval) {}
     func resetSession() {}
 }

@@ -50,11 +50,8 @@ fi
 echo "🚀 Building DailyLog $VERSION (release)..."
 swift build -c release
 
-# 3. สร้างโครงสร้าง .app
-rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_BUNDLE/Contents/MacOS"
-cp .build/release/DailyLog "$APP_BUNDLE/Contents/MacOS/"
-cp Info.plist "$APP_BUNDLE/Contents/"
+# 3. สร้างโครงสร้าง .app (binary หลัก + fan helper + Info.plist + ไอคอน)
+./scripts/bundle.sh "$APP_BUNDLE"
 
 # 4. เซ็นแบบ ad-hoc เพื่อลดปัญหา Gatekeeper (ยังไม่ notarize เพราะไม่มี Developer ID)
 echo "🔏 Ad-hoc code signing..."

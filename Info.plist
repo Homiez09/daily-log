@@ -8,6 +8,12 @@
 	<string>com.user.DailyLog</string>
 	<key>CFBundleName</key>
 	<string>DailyLog</string>
+	<key>CFBundleDisplayName</key>
+	<string>DailyLog</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

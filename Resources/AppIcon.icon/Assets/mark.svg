@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Gauge track (270°, opening at the bottom) -->
+  <path d="M 309 715 A 287 287 0 1 1 715 715" fill="none" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="77" stroke-linecap="round"/>
+  <!-- Gauge progress -->
+  <path d="M 309 715 A 287 287 0 1 1 738.8 336.1" fill="none" stroke="#FFFFFF" stroke-width="77" stroke-linecap="round"/>
+  <!-- Heartbeat line -->
+  <polyline points="327.7,512 430,512 481.3,389.1 553,645.1 604.2,512 696.3,512" fill="none" stroke="#FFFFFF" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
